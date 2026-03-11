@@ -3,19 +3,19 @@ import {
   View,
   Text,
   StyleSheet,
-  FlatList,
   Modal,
   TextInput,
   TouchableOpacity,
   ScrollView,
   Dimensions,
+  Alert,
 } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
 import { useAquarium } from '../context/AquariumContext';
 import { Card } from '../components/Card';
 import { FloatingActionButton } from '../components/FloatingActionButton';
 import { colors, spacing, borderRadius } from '../utils/theme';
-import type { WaterTestParam } from '../utils/types';
+import type { WaterTestParam, WaterAnalysis } from '../utils/types';
 
 const PARAM_LABELS: Record<WaterTestParam, string> = {
   pH: 'pH',
@@ -50,9 +50,17 @@ function getParamLabel(
 }
 
 export function WaterAnalysisScreen() {
-  const { waterAnalyses, addWaterAnalysis, selectedAquariumId, customAnalysisTypes, addCustomAnalysisType } =
-    useAquarium();
+  const {
+    waterAnalyses,
+    addWaterAnalysis,
+    updateWaterAnalysis,
+    deleteWaterAnalysis,
+    selectedAquariumId,
+    customAnalysisTypes,
+    addCustomAnalysisType,
+  } = useAquarium();
   const [modalVisible, setModalVisible] = useState(false);
+  const [editingAnalysis, setEditingAnalysis] = useState<WaterAnalysis | null>(null);
   const [param, setParam] = useState<WaterTestParam | string>('pH');
   const [customParamName, setCustomParamName] = useState('');
   const [value, setValue] = useState('');
@@ -68,6 +76,31 @@ export function WaterAnalysisScreen() {
   const sorted = [...filtered].sort(
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
   );
+
+  const groupedByDate = sorted.reduce(
+    (acc, a) => {
+      const d = a.date;
+      if (!acc[d]) acc[d] = [];
+      acc[d].push(a);
+      return acc;
+    },
+    {} as Record<string, typeof sorted>
+  );
+  const datesDesc = Object.keys(groupedByDate).sort(
+    (a, b) => new Date(b).getTime() - new Date(a).getTime()
+  );
+
+  const formatDateDisplay = (d: string) => {
+    try {
+      return new Date(d).toLocaleDateString('it-IT', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      });
+    } catch {
+      return d;
+    }
+  };
 
   const chartDataByParam = (paramKey: string) => {
     const data = filtered
@@ -90,7 +123,35 @@ export function WaterAnalysisScreen() {
     new Set([...customAnalysisTypes, ...paramsWithData.filter((p) => !(p in PARAM_LABELS))])
   );
 
-  const handleAdd = () => {
+  const openAddModal = () => {
+    setEditingAnalysis(null);
+    setParam('pH');
+    setCustomParamName('');
+    setValue('');
+    setDate(new Date().toISOString().split('T')[0]);
+    setModalVisible(true);
+  };
+
+  const openEditModal = (a: WaterAnalysis) => {
+    setEditingAnalysis(a);
+    const key = getParamKey(a);
+    setParam(key in PARAM_LABELS ? key : (a.param === 'altro' ? 'altro' : key));
+    setCustomParamName(a.customParamName ?? '');
+    setValue(String(a.value));
+    setDate(a.date);
+    setModalVisible(true);
+  };
+
+  const closeModal = () => {
+    setModalVisible(false);
+    setEditingAnalysis(null);
+    setParam('pH');
+    setCustomParamName('');
+    setValue('');
+    setDate(new Date().toISOString().split('T')[0]);
+  };
+
+  const handleSave = () => {
     const num = parseFloat(value);
     if (isNaN(num) || !selectedAquariumId) return;
     const isCustom = param === 'altro' || customAnalysisTypes.includes(param as string);
@@ -99,19 +160,44 @@ export function WaterAnalysisScreen() {
       ? (param === 'altro' ? customParamName.trim() : (param as string))
       : undefined;
     if (isCustom && !finalCustomName) return;
-    addWaterAnalysis({
-      aquariumId: selectedAquariumId,
-      param: finalParam,
-      value: num,
-      date,
-      customParamName: finalCustomName,
-    });
+
+    if (editingAnalysis) {
+      updateWaterAnalysis(editingAnalysis.id, {
+        param: finalParam,
+        value: num,
+        date,
+        customParamName: finalCustomName,
+      });
+    } else {
+      addWaterAnalysis({
+        aquariumId: selectedAquariumId,
+        param: finalParam,
+        value: num,
+        date,
+        customParamName: finalCustomName,
+      });
+    }
     if (finalCustomName) addCustomAnalysisType(finalCustomName);
-    setModalVisible(false);
-    setValue('');
-    setParam('pH');
-    setCustomParamName('');
-    setDate(new Date().toISOString().split('T')[0]);
+    closeModal();
+  };
+
+  const handleDelete = () => {
+    if (!editingAnalysis) return;
+    Alert.alert(
+      'Elimina misurazione',
+      `Eliminare questa misurazione?`,
+      [
+        { text: 'Annulla', style: 'cancel' },
+        {
+          text: 'Elimina',
+          style: 'destructive',
+          onPress: () => {
+            deleteWaterAnalysis(editingAnalysis.id);
+            closeModal();
+          },
+        },
+      ]
+    );
   };
 
   const screenWidth = Dimensions.get('window').width - spacing.lg * 2;
@@ -187,24 +273,44 @@ export function WaterAnalysisScreen() {
         {sorted.length === 0 ? (
           <Text style={styles.noData}>Nessuna analisi registrata</Text>
         ) : (
-          sorted.map((a) => (
-            <Card key={a.id}>
-              <View style={styles.analysisRow}>
-                <Text style={styles.analysisParam}>{getParamLabel(getParamKey(a), PARAM_LABELS)}</Text>
-                <Text style={styles.analysisValue}>{a.value}</Text>
+          datesDesc.map((d) => (
+            <Card key={d} style={styles.dateCard}>
+              <Text style={styles.dateHeader}>{formatDateDisplay(d)}</Text>
+              <View style={styles.table}>
+                <View style={styles.tableHeader}>
+                  <Text style={[styles.tableCell, styles.tableHeaderText]}>Parametro</Text>
+                  <Text style={[styles.tableCell, styles.tableHeaderText]}>Valore</Text>
+                </View>
+                {groupedByDate[d].map((a, idx) => (
+                  <TouchableOpacity
+                    key={a.id}
+                    style={[
+                      styles.tableRow,
+                      idx === groupedByDate[d].length - 1 && styles.tableRowLast,
+                    ]}
+                    onPress={() => openEditModal(a)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.tableCell}>
+                      {getParamLabel(getParamKey(a), PARAM_LABELS)}
+                    </Text>
+                    <Text style={[styles.tableCell, styles.tableValueCell]}>{a.value}</Text>
+                  </TouchableOpacity>
+                ))}
               </View>
-              <Text style={styles.analysisDate}>{a.date}</Text>
             </Card>
           ))
         )}
       </ScrollView>
 
-      <FloatingActionButton onPress={() => setModalVisible(true)} />
+      <FloatingActionButton onPress={openAddModal} />
 
       <Modal visible={modalVisible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Nuova analisi</Text>
+            <Text style={styles.modalTitle}>
+              {editingAnalysis ? 'Modifica misurazione' : 'Nuova analisi'}
+            </Text>
             <ScrollView>
               <Text style={styles.label}>Parametro</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -277,10 +383,15 @@ export function WaterAnalysisScreen() {
               />
             </ScrollView>
             <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setModalVisible(false)}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={closeModal}>
                 <Text style={styles.cancelBtnText}>Annulla</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.saveBtn} onPress={handleAdd}>
+              {editingAnalysis && (
+                <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete}>
+                  <Text style={styles.deleteBtnText}>Elimina</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
                 <Text style={styles.saveBtnText}>Salva</Text>
               </TouchableOpacity>
             </View>
@@ -356,25 +467,55 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
   },
-  analysisRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  dateCard: {
+    marginBottom: spacing.md,
   },
-  analysisParam: {
+  dateHeader: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: spacing.sm,
+    paddingBottom: spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  table: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.md,
+    overflow: 'hidden',
+  },
+  tableHeader: {
+    flexDirection: 'row',
+    backgroundColor: colors.background,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  tableRow: {
+    flexDirection: 'row',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  tableCell: {
+    flex: 1,
+    fontSize: 14,
     color: colors.text,
   },
-  analysisValue: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.primary,
-  },
-  analysisDate: {
-    fontSize: 12,
+  tableHeaderText: {
+    fontWeight: '600',
     color: colors.textSecondary,
-    marginTop: spacing.xs,
+  },
+  tableValueCell: {
+    fontWeight: '600',
+    color: colors.primary,
+    textAlign: 'right',
+  },
+  tableRowLast: {
+    borderBottomWidth: 0,
   },
   modalOverlay: {
     flex: 1,
@@ -453,8 +594,21 @@ const styles = StyleSheet.create({
   },
   modalActions: {
     flexDirection: 'row',
-    gap: spacing.md,
+    gap: spacing.sm,
     marginTop: spacing.md,
+    flexWrap: 'wrap',
+  },
+  deleteBtn: {
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.error,
+    alignItems: 'center',
+  },
+  deleteBtnText: {
+    fontSize: 16,
+    color: colors.error,
+    fontWeight: '600',
   },
   cancelBtn: {
     flex: 1,

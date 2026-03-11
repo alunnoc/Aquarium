@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
@@ -72,7 +72,9 @@ export function AquariumDetailScreen() {
     });
   };
 
-  useFocusEffect(React.useCallback(() => () => handleSave(), [handleSave]));
+  const handleSaveRef = useRef(handleSave);
+  handleSaveRef.current = handleSave;
+  useFocusEffect(React.useCallback(() => () => handleSaveRef.current(), []));
 
   const handleDelete = () => {
     if (!aquarium || !selectedAquariumId) return;
