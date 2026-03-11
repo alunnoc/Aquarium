@@ -1,0 +1,232 @@
+Voglio creare una app Android per la gestione di acquari usando React Native con Expo.
+
+L'app deve essere semplice, visivamente accattivante e adatta anche a neofiti dell'acquariofilia.
+Il design deve essere moderno, pulito, con colori ispirati all’acqua (blu, azzurro, verde acqua).
+
+Usa:
+
+Expo
+
+React Native
+
+Expo Router oppure React Navigation (tab navigation)
+
+AsyncStorage o SQLite per salvare i dati localmente
+
+react-native-chart-kit o victory-native per i grafici
+
+expo-image-picker per le foto degli acquari
+
+L'app deve avere una Tab Navigation principale.
+
+Struttura dell'app
+1️⃣ Tab "Acquari"
+
+Questa è la pagina principale.
+
+Funzionalità:
+
+Mostra tutti gli acquari dell'utente
+
+Visualizzazione a card
+
+Ogni card deve contenere:
+
+foto di copertina dell’acquario
+
+nome dell’acquario
+
+litri (opzionale)
+
+tipo (dolce / marino)
+
+Funzioni:
+
+pulsante "Aggiungi acquario"
+
+quando si crea un acquario si possono inserire:
+
+nome
+
+litri
+
+tipo
+
+foto di copertina (usando image picker)
+
+Premendo su un acquario si entra nella gestione di quell’acquario.
+
+Dentro ogni acquario
+
+Quando un acquario è selezionato si vedono altre tab secondarie.
+
+2️⃣ Tab "Analisi acqua"
+
+Serve per registrare i test dell'acqua.
+
+Valori supportati:
+
+pH
+
+GH
+
+KH
+
+NO2
+
+NO3
+
+NH3/NH4
+
+Temperatura
+
+altri valori eventualmente aggiungibili
+
+Funzionalità:
+
+pulsante "Aggiungi analisi"
+
+form con:
+
+tipo di analisi
+
+valore
+
+data
+
+Visualizzazione:
+
+lista cronologica delle analisi
+
+grafico dello storico per ogni parametro
+
+possibilità di filtrare per parametro
+
+3️⃣ Tab "Abitanti"
+
+Serve per gestire cosa vive nell’acquario.
+
+Si possono aggiungere:
+
+pesci
+
+piante
+
+invertebrati
+
+coralli
+
+Ogni elemento deve avere:
+
+nome
+
+quantità
+
+note
+
+foto opzionale
+
+Visualizzazione:
+
+lista ordinata per categoria
+
+card semplici con icona o foto
+
+4️⃣ Tab "Appunti"
+
+Una sezione tipo diario dell'acquario.
+
+Funzioni:
+
+scrivere appunti
+
+salvare la data
+
+modificare o eliminare
+
+Esempi:
+
+cambio acqua
+
+manutenzione filtro
+
+fertilizzazione
+
+osservazioni
+
+UX e Design
+
+L'app deve essere:
+
+minimal
+
+facile da usare
+
+intuitiva per principianti
+
+con icone chiare
+
+Usare:
+
+card UI
+
+floating action button per aggiungere elementi
+
+grafici semplici e leggibili
+
+Color palette suggerita:
+
+blu acqua
+
+turchese
+
+bianco
+
+accenti verdi
+
+Architettura
+
+Organizzare il progetto con:
+
+/components
+/screens
+/navigation
+/context
+/storage
+/utils
+
+Gestione stato con:
+
+Context API oppure Zustand
+
+Persistenza dati:
+
+AsyncStorage o SQLite
+
+Funzioni extra utili (facoltative)
+
+Se possibile aggiungere:
+
+reminder cambio acqua
+
+reminder test acqua
+
+backup locale dati
+
+esportazione dati
+
+Genera:
+
+struttura del progetto
+
+navigazione
+
+componenti principali
+
+schermate base
+
+gestione dati locale
+
+grafico storico delle analisi
+
+Il codice deve essere pulito, modulare e facilmente espandibile.
