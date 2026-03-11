@@ -14,12 +14,22 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
+import * as DocumentPicker from 'expo-document-picker';
 import { useAquarium } from '../context/AquariumContext';
 import { colors, spacing, borderRadius } from '../utils/theme';
 
 export function AquariumDetailScreen() {
   const navigation = useNavigation();
-  const { aquariums, updateAquarium, deleteAquarium, selectedAquariumId } = useAquarium();
+  const {
+    aquariums,
+    updateAquarium,
+    deleteAquarium,
+    exportAquariumData,
+    importAquariumData,
+    selectedAquariumId,
+  } = useAquarium();
   const aquarium = aquariums.find((a) => a.id === selectedAquariumId);
 
   const [description, setDescription] = useState('');
@@ -76,6 +86,51 @@ export function AquariumDetailScreen() {
   handleSaveRef.current = handleSave;
   useFocusEffect(React.useCallback(() => () => handleSaveRef.current(), []));
 
+  const handleExport = async () => {
+    if (!selectedAquariumId) return;
+    try {
+      const json = await exportAquariumData(selectedAquariumId);
+      if (!json) {
+        Alert.alert('Errore', 'Impossibile esportare l\'acquario.');
+        return;
+      }
+      const filename = `acquario_${aquarium?.name.replace(/\s/g, '_')}_${new Date().toISOString().slice(0, 10)}.json`;
+      const path = `${FileSystem.cacheDirectory}${filename}`;
+      await FileSystem.writeAsStringAsync(path, json);
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(path, {
+          mimeType: 'application/json',
+          dialogTitle: 'Esporta acquario',
+        });
+      } else {
+        Alert.alert('Esportato', 'File salvato in cache. La condivisione non è disponibile.');
+      }
+    } catch (err) {
+      Alert.alert('Errore', 'Impossibile esportare.');
+    }
+  };
+
+  const handleImport = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: '*/*',
+        copyToCacheDirectory: true,
+      });
+      if (result.canceled) return;
+      const uri = result.assets[0].uri;
+      const content = await FileSystem.readAsStringAsync(uri);
+      const { success, error } = await importAquariumData(content);
+      if (success) {
+        Alert.alert('Importazione completata', 'L\'acquario è stato importato.');
+      } else {
+        Alert.alert('Errore importazione', error || 'File non valido.');
+      }
+    } catch (err) {
+      Alert.alert('Errore', 'Impossibile importare il file.');
+    }
+  };
+
   const handleDelete = () => {
     if (!aquarium || !selectedAquariumId) return;
     Alert.alert(
@@ -121,7 +176,11 @@ export function AquariumDetailScreen() {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scroll}
+        showsVerticalScrollIndicator={true}
+        contentContainerStyle={styles.scrollContent}
+      >
         <View style={styles.photoSection}>
           {aquarium.coverImage ? (
             <Image source={{ uri: aquarium.coverImage }} style={styles.coverImage} />
@@ -193,6 +252,18 @@ export function AquariumDetailScreen() {
           </View>
         </View>
 
+        <View style={styles.exportImportSection}>
+          <Text style={styles.exportImportTitle}>Esporta / Importa</Text>
+          <View style={styles.exportImportRow}>
+            <TouchableOpacity style={styles.exportBtn} onPress={handleExport}>
+              <Text style={styles.exportBtnText}>📤 Esporta</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.importBtn} onPress={handleImport}>
+              <Text style={styles.importBtnText}>📥 Importa</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         <View style={styles.photoSection}>
           <Text style={styles.sectionTitle}>Foto aggiuntiva</Text>
           <TouchableOpacity style={styles.extraPhotoBtn} onPress={pickExtraPhoto}>
@@ -233,6 +304,9 @@ const styles = StyleSheet.create({
   },
   scroll: {
     flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 120,
   },
   photoSection: {
     marginBottom: spacing.lg,
@@ -335,7 +409,49 @@ const styles = StyleSheet.create({
   },
   descriptionSection: {
     marginHorizontal: spacing.md,
-    marginBottom: spacing.xl,
+    marginBottom: spacing.lg,
+  },
+  exportImportSection: {
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.lg,
+    backgroundColor: colors.white,
+    padding: spacing.lg,
+    borderRadius: borderRadius.lg,
+  },
+  exportImportTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: spacing.md,
+  },
+  exportImportRow: {
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  exportBtn: {
+    flex: 1,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+  },
+  exportBtnText: {
+    fontSize: 16,
+    color: colors.white,
+    fontWeight: '600',
+  },
+  importBtn: {
+    flex: 1,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    alignItems: 'center',
+  },
+  importBtnText: {
+    fontSize: 16,
+    color: colors.primary,
+    fontWeight: '600',
   },
   descriptionInput: {
     backgroundColor: colors.white,

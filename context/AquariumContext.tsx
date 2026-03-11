@@ -28,6 +28,8 @@ interface AquariumContextType {
   updateMaintenanceAlert: (id: string, data: Partial<MaintenanceAlert>) => void;
   deleteMaintenanceAlert: (id: string) => void;
   loadData: () => Promise<void>;
+  exportAquariumData: (aquariumId: string) => Promise<string>;
+  importAquariumData: (json: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 const AquariumContext = createContext<AquariumContextType | null>(null);
@@ -207,6 +209,104 @@ export function AquariumProvider({ children }: { children: React.ReactNode }) {
     aquariumStorage.saveCustomAnalysisTypes(newTypes);
   }, [customAnalysisTypes]);
 
+  const exportAquariumData = useCallback(async (aquariumId: string): Promise<string> => {
+    const aq = aquariums.find((a) => a.id === aquariumId);
+    if (!aq) return '';
+    const analyses = waterAnalyses.filter((a) => a.aquariumId === aquariumId);
+    const inhab = inhabitants.filter((i) => i.aquariumId === aquariumId);
+    const n = notes.filter((n) => n.aquariumId === aquariumId);
+    const alerts = maintenanceAlerts.filter((a) => a.aquariumId === aquariumId);
+    const customTypes = Array.from(
+      new Set([
+        ...customAnalysisTypes,
+        ...analyses
+          .filter((x) => x.param === 'altro' && x.customParamName)
+          .map((x) => x.customParamName!),
+      ])
+    );
+    return JSON.stringify(
+      {
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        aquarium: aq,
+        waterAnalyses: analyses,
+        inhabitants: inhab,
+        notes: n,
+        maintenanceAlerts: alerts,
+        customAnalysisTypes: customTypes,
+      },
+      null,
+      2
+    );
+  }, [aquariums, waterAnalyses, inhabitants, notes, maintenanceAlerts, customAnalysisTypes]);
+
+  const importAquariumData = useCallback(async (json: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const data = JSON.parse(json);
+      if (!data.aquarium || !data.aquarium.name) {
+        return { success: false, error: 'File non valido: acquario mancante.' };
+      }
+      const newId = generateId();
+      const newAq: Aquarium = {
+        ...data.aquarium,
+        id: newId,
+        createdAt: new Date().toISOString(),
+      };
+      const newAnalyses: WaterAnalysis[] = (data.waterAnalyses || []).map((a: WaterAnalysis) => ({
+        ...a,
+        id: generateId(),
+        aquariumId: newId,
+      }));
+      const newInhab: Inhabitant[] = (data.inhabitants || []).map((i: Inhabitant) => ({
+        ...i,
+        id: generateId(),
+        aquariumId: newId,
+      }));
+      const newNotes: Note[] = (data.notes || []).map((n: Note) => ({
+        ...n,
+        id: generateId(),
+        aquariumId: newId,
+      }));
+      const newAlerts: MaintenanceAlert[] = (data.maintenanceAlerts || []).map((a: MaintenanceAlert) => ({
+        ...a,
+        id: generateId(),
+        aquariumId: newId,
+      }));
+      const newCustomTypes = data.customAnalysisTypes || [];
+      const mergedCustom = Array.from(
+        new Set([...customAnalysisTypes, ...newCustomTypes])
+      );
+
+      await aquariumStorage.saveAquariums([...aquariums, newAq]);
+      await aquariumStorage.saveWaterAnalyses([...waterAnalyses, ...newAnalyses]);
+      await aquariumStorage.saveInhabitants([...inhabitants, ...newInhab]);
+      await aquariumStorage.saveNotes([...notes, ...newNotes]);
+      await aquariumStorage.saveMaintenanceAlerts([...maintenanceAlerts, ...newAlerts]);
+      await aquariumStorage.saveCustomAnalysisTypes(mergedCustom);
+
+      setAquariums((prev) => [...prev, newAq]);
+      setWaterAnalyses((prev) => [...prev, ...newAnalyses]);
+      setInhabitants((prev) => [...prev, ...newInhab]);
+      setNotes((prev) => [...prev, ...newNotes]);
+      setMaintenanceAlerts((prev) => [...prev, ...newAlerts]);
+      setCustomAnalysisTypes(mergedCustom);
+      setSelectedAquariumId(newId);
+      return { success: true };
+    } catch (err) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'Errore durante l\'importazione.',
+      };
+    }
+  }, [
+    aquariums,
+    waterAnalyses,
+    inhabitants,
+    notes,
+    maintenanceAlerts,
+    customAnalysisTypes,
+  ]);
+
   return (
     <AquariumContext.Provider
       value={{
@@ -235,6 +335,8 @@ export function AquariumProvider({ children }: { children: React.ReactNode }) {
         updateMaintenanceAlert,
         deleteMaintenanceAlert,
         loadData,
+        exportAquariumData,
+        importAquariumData,
       }}
     >
       {children}
