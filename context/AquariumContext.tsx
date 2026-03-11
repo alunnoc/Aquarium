@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import type { Aquarium, WaterAnalysis, Inhabitant, Note } from '../utils/types';
+import type { Aquarium, WaterAnalysis, Inhabitant, Note, MaintenanceAlert } from '../utils/types';
 import { aquariumStorage } from '../storage/aquariumStorage';
 
 interface AquariumContextType {
@@ -23,6 +23,10 @@ interface AquariumContextType {
   addNote: (n: Omit<Note, 'id'>) => void;
   updateNote: (id: string, data: Partial<Note>) => void;
   deleteNote: (id: string) => void;
+  maintenanceAlerts: MaintenanceAlert[];
+  addMaintenanceAlert: (a: Omit<MaintenanceAlert, 'id'>) => void;
+  updateMaintenanceAlert: (id: string, data: Partial<MaintenanceAlert>) => void;
+  deleteMaintenanceAlert: (id: string) => void;
   loadData: () => Promise<void>;
 }
 
@@ -37,21 +41,24 @@ export function AquariumProvider({ children }: { children: React.ReactNode }) {
   const [waterAnalyses, setWaterAnalyses] = useState<WaterAnalysis[]>([]);
   const [inhabitants, setInhabitants] = useState<Inhabitant[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
+  const [maintenanceAlerts, setMaintenanceAlerts] = useState<MaintenanceAlert[]>([]);
   const [customAnalysisTypes, setCustomAnalysisTypes] = useState<string[]>([]);
   const [selectedAquariumId, setSelectedAquariumId] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
-    const [a, w, i, n, c] = await Promise.all([
+    const [a, w, i, n, m, c] = await Promise.all([
       aquariumStorage.getAquariums(),
       aquariumStorage.getWaterAnalyses(),
       aquariumStorage.getInhabitants(),
       aquariumStorage.getNotes(),
+      aquariumStorage.getMaintenanceAlerts(),
       aquariumStorage.getCustomAnalysisTypes(),
     ]);
     setAquariums(a);
     setWaterAnalyses(w);
     setInhabitants(i);
     setNotes(n);
+    setMaintenanceAlerts(m);
     setCustomAnalysisTypes(c);
   }, []);
 
@@ -95,30 +102,34 @@ export function AquariumProvider({ children }: { children: React.ReactNode }) {
 
   const deleteAquarium = useCallback(async (id: string) => {
     try {
-      const [currentAquariums, currentAnalyses, currentInhabitants, currentNotes] =
+      const [currentAquariums, currentAnalyses, currentInhabitants, currentNotes, currentAlerts] =
         await Promise.all([
           aquariumStorage.getAquariums(),
           aquariumStorage.getWaterAnalyses(),
           aquariumStorage.getInhabitants(),
           aquariumStorage.getNotes(),
+          aquariumStorage.getMaintenanceAlerts(),
         ]);
 
       const newAquariums = currentAquariums.filter((a) => a.id !== id);
       const newAnalyses = currentAnalyses.filter((x) => x.aquariumId !== id);
       const newInhabitants = currentInhabitants.filter((x) => x.aquariumId !== id);
       const newNotes = currentNotes.filter((x) => x.aquariumId !== id);
+      const newAlerts = currentAlerts.filter((x) => x.aquariumId !== id);
 
       await Promise.all([
         aquariumStorage.saveAquariums(newAquariums),
         aquariumStorage.saveWaterAnalyses(newAnalyses),
         aquariumStorage.saveInhabitants(newInhabitants),
         aquariumStorage.saveNotes(newNotes),
+        aquariumStorage.saveMaintenanceAlerts(newAlerts),
       ]);
 
       setAquariums(newAquariums);
       setWaterAnalyses(newAnalyses);
       setInhabitants(newInhabitants);
       setNotes(newNotes);
+      setMaintenanceAlerts(newAlerts);
       setSelectedAquariumId(null);
     } catch (err) {
       console.error('Errore eliminazione acquario:', err);
@@ -167,6 +178,25 @@ export function AquariumProvider({ children }: { children: React.ReactNode }) {
     persistNotes(notes.filter((n) => n.id !== id));
   }, [notes, persistNotes]);
 
+  const persistMaintenanceAlerts = useCallback(async (m: MaintenanceAlert[]) => {
+    setMaintenanceAlerts(m);
+    await aquariumStorage.saveMaintenanceAlerts(m);
+  }, []);
+
+  const addMaintenanceAlert = useCallback((a: Omit<MaintenanceAlert, 'id'>) => {
+    const newA: MaintenanceAlert = { ...a, id: generateId() };
+    persistMaintenanceAlerts([...maintenanceAlerts, newA]);
+  }, [maintenanceAlerts, persistMaintenanceAlerts]);
+
+  const updateMaintenanceAlert = useCallback((id: string, data: Partial<MaintenanceAlert>) => {
+    const updated = maintenanceAlerts.map((a) => (a.id === id ? { ...a, ...data } : a));
+    persistMaintenanceAlerts(updated);
+  }, [maintenanceAlerts, persistMaintenanceAlerts]);
+
+  const deleteMaintenanceAlert = useCallback((id: string) => {
+    persistMaintenanceAlerts(maintenanceAlerts.filter((a) => a.id !== id));
+  }, [maintenanceAlerts, persistMaintenanceAlerts]);
+
   const addCustomAnalysisType = useCallback((name: string) => {
     const trimmed = name.trim();
     if (!trimmed) return;
@@ -200,6 +230,10 @@ export function AquariumProvider({ children }: { children: React.ReactNode }) {
         addNote,
         updateNote,
         deleteNote,
+        maintenanceAlerts,
+        addMaintenanceAlert,
+        updateMaintenanceAlert,
+        deleteMaintenanceAlert,
         loadData,
       }}
     >

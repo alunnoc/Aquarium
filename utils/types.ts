@@ -45,3 +45,11 @@ export interface Note {
   content: string;
   date: string;
 }
+
+export interface MaintenanceAlert {
+  id: string;
+  aquariumId: string;
+  title: string;
+  intervalDays: number;
+  lastDoneDate?: string;
+}

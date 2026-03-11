@@ -9,16 +9,36 @@ import { AquariumDetailScreen } from '../screens/AquariumDetailScreen';
 import { WaterAnalysisScreen } from '../screens/WaterAnalysisScreen';
 import { InhabitantsScreen } from '../screens/InhabitantsScreen';
 import { NotesScreen } from '../screens/NotesScreen';
+import { MaintenanceScreen } from '../screens/MaintenanceScreen';
 import { colors, spacing } from '../utils/theme';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
-function TabIcon({ emoji, label, focused }: { emoji: string; label: string; focused: boolean }) {
+function TabIcon({
+  emoji,
+  label,
+  focused,
+  labelSize,
+}: {
+  emoji: string;
+  label: string;
+  focused: boolean;
+  labelSize?: number;
+}) {
   return (
     <View style={styles.tabItem}>
       <Text style={styles.tabEmoji}>{emoji}</Text>
-      <Text style={[styles.tabLabel, focused && styles.tabLabelActive]} numberOfLines={1}>
+      <Text
+        style={[
+          styles.tabLabel,
+          focused && styles.tabLabelActive,
+          labelSize ? { fontSize: labelSize } : undefined,
+        ]}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.7}
+      >
         {label}
       </Text>
     </View>
@@ -72,6 +92,15 @@ function DetailTabs() {
         options={{
           tabBarIcon: ({ focused }) => (
             <TabIcon emoji="📝" label="Appunti" focused={focused} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Manutenzione"
+        component={MaintenanceScreen}
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <TabIcon emoji="🔧" label="Gestione" focused={focused} />
           ),
         }}
       />
