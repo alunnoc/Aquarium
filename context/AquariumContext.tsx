@@ -94,29 +94,35 @@ export function AquariumProvider({ children }: { children: React.ReactNode }) {
   }, [aquariums, persistAquariums]);
 
   const deleteAquarium = useCallback(async (id: string) => {
-    const [currentAquariums, currentAnalyses, currentInhabitants, currentNotes] =
+    try {
+      const [currentAquariums, currentAnalyses, currentInhabitants, currentNotes] =
+        await Promise.all([
+          aquariumStorage.getAquariums(),
+          aquariumStorage.getWaterAnalyses(),
+          aquariumStorage.getInhabitants(),
+          aquariumStorage.getNotes(),
+        ]);
+
+      const newAquariums = currentAquariums.filter((a) => a.id !== id);
+      const newAnalyses = currentAnalyses.filter((x) => x.aquariumId !== id);
+      const newInhabitants = currentInhabitants.filter((x) => x.aquariumId !== id);
+      const newNotes = currentNotes.filter((x) => x.aquariumId !== id);
+
       await Promise.all([
-        aquariumStorage.getAquariums(),
-        aquariumStorage.getWaterAnalyses(),
-        aquariumStorage.getInhabitants(),
-        aquariumStorage.getNotes(),
+        aquariumStorage.saveAquariums(newAquariums),
+        aquariumStorage.saveWaterAnalyses(newAnalyses),
+        aquariumStorage.saveInhabitants(newInhabitants),
+        aquariumStorage.saveNotes(newNotes),
       ]);
 
-    const newAquariums = currentAquariums.filter((a) => a.id !== id);
-    const newAnalyses = currentAnalyses.filter((x) => x.aquariumId !== id);
-    const newInhabitants = currentInhabitants.filter((x) => x.aquariumId !== id);
-    const newNotes = currentNotes.filter((x) => x.aquariumId !== id);
-
-    await aquariumStorage.saveAquariums(newAquariums);
-    await aquariumStorage.saveWaterAnalyses(newAnalyses);
-    await aquariumStorage.saveInhabitants(newInhabitants);
-    await aquariumStorage.saveNotes(newNotes);
-
-    setAquariums(newAquariums);
-    setWaterAnalyses(newAnalyses);
-    setInhabitants(newInhabitants);
-    setNotes(newNotes);
-    setSelectedAquariumId(null);
+      setAquariums(newAquariums);
+      setWaterAnalyses(newAnalyses);
+      setInhabitants(newInhabitants);
+      setNotes(newNotes);
+      setSelectedAquariumId(null);
+    } catch (err) {
+      console.error('Errore eliminazione acquario:', err);
+    }
   }, []);
 
   const addWaterAnalysis = useCallback((a: Omit<WaterAnalysis, 'id'>) => {

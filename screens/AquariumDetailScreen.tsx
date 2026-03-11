@@ -75,7 +75,7 @@ export function AquariumDetailScreen() {
   useFocusEffect(React.useCallback(() => () => handleSave(), [handleSave]));
 
   const handleDelete = () => {
-    if (!aquarium) return;
+    if (!aquarium || !selectedAquariumId) return;
     Alert.alert(
       'Elimina acquario',
       `Vuoi eliminare "${aquarium.name}"? Questa azione non può essere annullata.`,
@@ -85,10 +85,8 @@ export function AquariumDetailScreen() {
           text: 'Elimina',
           style: 'destructive',
           onPress: async () => {
-            if (selectedAquariumId) {
-              await deleteAquarium(selectedAquariumId);
-              navigation.goBack();
-            }
+            await deleteAquarium(selectedAquariumId);
+            navigation.navigate('List' as never);
           },
         },
       ]

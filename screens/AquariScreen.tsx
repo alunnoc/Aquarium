@@ -113,7 +113,10 @@ export function AquariScreen() {
                     {
                       text: 'Elimina',
                       style: 'destructive',
-                      onPress: () => deleteAquarium(item.id),
+                      onPress: async () => {
+                        await deleteAquarium(item.id);
+                        loadData();
+                      },
                     },
                   ]
                 );

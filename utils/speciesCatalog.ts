@@ -365,6 +365,28 @@ export function getSpeciesByCategory(category: SpeciesInfo['category']): Species
   return SPECIES_CATALOG.filter((s) => s.category === category);
 }
 
+export function getSpeciesForAquarium(
+  waterType: 'dolce' | 'marino',
+  category: SpeciesInfo['category']
+): SpeciesInfo[] {
+  return SPECIES_CATALOG.filter(
+    (s) => s.category === category && s.waterType === waterType
+  );
+}
+
+export function searchSpecies(
+  species: SpeciesInfo[],
+  query: string
+): SpeciesInfo[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return species;
+  return species.filter(
+    (s) =>
+      s.name.toLowerCase().includes(q) ||
+      (s.description?.toLowerCase().includes(q))
+  );
+}
+
 export function getSpeciesById(id: string): SpeciesInfo | undefined {
   return SPECIES_CATALOG.find((s) => s.id === id);
 }
