@@ -28,6 +28,18 @@ const PARAM_LABELS: Record<WaterTestParam, string> = {
   altro: 'Altro',
 };
 
+// Palette ottimizzata per daltonici: colori molto distinti (luminosità, saturazione, tonalità)
+const CHART_COLORS = [
+  'rgba(0, 119, 187, 1)',    // blu scuro
+  'rgba(238, 119, 51, 1)',   // arancione
+  'rgba(0, 153, 136, 1)',    // teal
+  'rgba(204, 51, 17, 1)',    // rosso scuro
+  'rgba(238, 51, 119, 1)',   // magenta
+  'rgba(51, 187, 238, 1)',   // ciano
+  'rgba(187, 187, 0, 1)',    // giallo scuro/oliva
+  'rgba(102, 51, 153, 1)',   // viola scuro
+];
+
 const chartConfig = {
   backgroundColor: colors.white,
   backgroundGradientFrom: colors.white,
@@ -36,6 +48,7 @@ const chartConfig = {
   color: (opacity = 1) => `rgba(13, 148, 136, ${opacity})`,
   labelColor: (opacity = 1) => `rgba(15, 23, 42, ${opacity})`,
   style: { borderRadius: borderRadius.lg },
+  useShadowColorFromDataset: true,
 };
 
 function getParamKey(a: { param: WaterTestParam; customParamName?: string }): string {
@@ -66,6 +79,7 @@ export function WaterAnalysisScreen() {
   const [value, setValue] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [filterParam, setFilterParam] = useState<string>('tutti');
+  const [hiddenParams, setHiddenParams] = useState<Set<string>>(new Set());
 
   const filtered = waterAnalyses.filter((a) => {
     if (!selectedAquariumId || a.aquariumId !== selectedAquariumId) return false;
@@ -102,23 +116,52 @@ export function WaterAnalysisScreen() {
     }
   };
 
-  const chartDataByParam = (paramKey: string) => {
-    const data = filtered
-      .filter((a) => getParamKey(a) === paramKey)
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    const labels = data.map((d) => d.date.slice(5));
-    let values = data.map((d) => d.value);
-    if (values.length === 1) {
-      labels.push(labels[0]);
-      values = [values[0], values[0]];
-    }
+  const paramsWithData = Array.from(new Set(filtered.map((a) => getParamKey(a))));
+
+  const combinedChartData = (() => {
+    const allDates = Array.from(new Set(filtered.map((a) => a.date))).sort(
+      (a, b) => new Date(a).getTime() - new Date(b).getTime()
+    );
+    if (allDates.length === 0) return null;
+    const labels = allDates.map((d) => d.slice(5));
+    const datasets = paramsWithData
+      .filter((p) => !hiddenParams.has(p))
+      .map((paramKey, idx) => {
+        const paramData = filtered
+          .filter((a) => getParamKey(a) === paramKey)
+          .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        const valueByDate: Record<string, number> = {};
+        paramData.forEach((a) => { valueByDate[a.date] = a.value; });
+        let prev = paramData[0]?.value ?? 0;
+        const data = allDates.map((d) => {
+          if (d in valueByDate) {
+            prev = valueByDate[d];
+            return prev;
+          }
+          return prev;
+        });
+        const colorIdx = paramsWithData.indexOf(paramKey) % CHART_COLORS.length;
+        return {
+          data: data.length === 1 ? [data[0], data[0]] : data,
+          color: (opacity = 1) =>
+            CHART_COLORS[colorIdx].replace('1)', `${opacity})`),
+        };
+      });
     return {
-      labels,
-      datasets: [{ data: values }],
+      labels: labels.length === 1 ? [labels[0], labels[0]] : labels,
+      datasets,
     };
+  })();
+
+  const toggleParamVisibility = (paramKey: string) => {
+    setHiddenParams((prev) => {
+      const next = new Set(prev);
+      if (next.has(paramKey)) next.delete(paramKey);
+      else next.add(paramKey);
+      return next;
+    });
   };
 
-  const paramsWithData = Array.from(new Set(filtered.map((a) => getParamKey(a))));
   const allCustomTypes = Array.from(
     new Set([...customAnalysisTypes, ...paramsWithData.filter((p) => !(p in PARAM_LABELS))])
   );
@@ -251,23 +294,57 @@ export function WaterAnalysisScreen() {
       </ScrollView>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-        {paramsWithData.map((p) => {
-          const data = chartDataByParam(p);
-          if (data.datasets[0].data.length === 0) return null;
-          return (
-            <Card key={p}>
-              <Text style={styles.chartTitle}>{getParamLabel(p, PARAM_LABELS)}</Text>
+        {combinedChartData ? (
+          <Card>
+            <Text style={styles.chartTitle}>Andamenti</Text>
+            <Text style={styles.chartSubtitle}>
+              Tocca una voce per mostrare/nascondere
+            </Text>
+            <View style={styles.legend}>
+              {paramsWithData.map((p, idx) => {
+                const isHidden = hiddenParams.has(p);
+                const colorIdx = idx % CHART_COLORS.length;
+                return (
+                  <TouchableOpacity
+                    key={p}
+                    style={[styles.legendItem, isHidden && styles.legendItemHidden]}
+                    onPress={() => toggleParamVisibility(p)}
+                  >
+                    <View
+                      style={[
+                        styles.legendDot,
+                        { backgroundColor: CHART_COLORS[colorIdx] },
+                        isHidden && styles.legendDotHidden,
+                      ]}
+                    />
+                    <Text
+                      style={[
+                        styles.legendText,
+                        isHidden && styles.legendTextHidden,
+                      ]}
+                    >
+                      {getParamLabel(p, PARAM_LABELS)}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            {combinedChartData.datasets.length > 0 ? (
               <LineChart
-                data={data}
+                data={combinedChartData}
                 width={screenWidth}
-                height={180}
+                height={220}
                 chartConfig={chartConfig}
                 bezier
                 style={styles.chart}
               />
-            </Card>
-          );
-        })}
+            ) : (
+              <Text style={styles.noChartText}>
+                Tocca una voce sopra per mostrare le serie
+              </Text>
+            )}
+          </Card>
+        ) : null}
 
         <Text style={styles.sectionTitle}>Cronologia</Text>
         {sorted.length === 0 ? (
@@ -450,7 +527,52 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: colors.text,
+    marginBottom: spacing.xs,
+  },
+  chartSubtitle: {
+    fontSize: 12,
+    color: colors.textSecondary,
     marginBottom: spacing.sm,
+  },
+  legend: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.sm,
+    backgroundColor: colors.background,
+  },
+  legendItemHidden: {
+    opacity: 0.6,
+  },
+  legendDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: spacing.xs,
+  },
+  legendDotHidden: {
+    backgroundColor: colors.textSecondary,
+  },
+  legendText: {
+    fontSize: 12,
+    color: colors.text,
+  },
+  legendTextHidden: {
+    color: colors.textSecondary,
+    textDecorationLine: 'line-through',
+  },
+  noChartText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    paddingVertical: spacing.xl,
   },
   chart: {
     marginVertical: spacing.sm,
